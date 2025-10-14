@@ -36,11 +36,11 @@ dgp_clust <- function(N = 1000, theta, intercept, clustering = FALSE){
     
     ## creation of the endogenous variable
     
-    eps1 <- rnorm(N/2, mean = 0, sd = 2)
+    eps1 <- rnorm(N/2, mean = 0, sd = 1)
     
     rho <- runif(1, 0,1)
     
-    u1 <- rnorm(N/2, mean = 0, sd = 2)
+    u1 <- rnorm(N/2, mean = 0, sd = 1)
     
     u1 <- rho * eps1 + sqrt((1 - rho^2)) * u1
     
@@ -48,13 +48,15 @@ dgp_clust <- function(N = 1000, theta, intercept, clustering = FALSE){
     
     eps2 <- rnorm(N/2, mean = 0, sd = 4)
     
-    u2 <- rnorm(N/2,mean = 0, sd = 0.5)
+    u2 <- rnorm(N/2,mean = 0, sd = 1)
     
     u2 <- rho*eps2 + sqrt((1 - rho^2)) + u2 
     
     X2 <- 1.3 * Z1[((N/2) + 1):N] + 0.8 * Z2[((N/2) + 1):N] + u2
     
     X <- as.vector(rbind(X1, X2))
+    
+    eps <- as.vector(rbind(eps1, eps2))
     
     }
   
@@ -74,8 +76,6 @@ g <- function(theta, x){
   
 }
 
-N = 1000
-level = 0.05
 simulation <- function(M, N, clustering = FALSE, level = 0.05){
   
   theta_sim <- rnorm(1, mean = 2, sd = 1)
@@ -89,6 +89,8 @@ simulation <- function(M, N, clustering = FALSE, level = 0.05){
   coverage <- rep(0,M)
   
   z <- qnorm(1-level/2)
+  
+  Jstat <- rep(0,M)
   
   for(i in 1:M){
     
@@ -112,10 +114,45 @@ simulation <- function(M, N, clustering = FALSE, level = 0.05){
     
     coverage[i] <- (theta_sim>=lower_bound)*(theta_sim<=upper_bound)  
     
+    Jstat[i] <- specTest(estimates)$test[1]
+    
   }
   
-  return(list(intercept_true = intercept_sim, theta_true = theta_sim, intercept = mean(intercept), theta = mean(theta), coverage = mean(coverage)))
+  return(list(intercept_true = intercept_sim, theta_true = theta_sim, intercept = mean(intercept), theta = mean(theta), coverage = mean(coverage), Jstats = Jstat))
   
 }
 
-simulation(M = 2000, N = 1000, clustering = FALSE, level = 0.05)
+graph <- function(statistics, distribution = "CDF"){ 
+  
+  J  <- statistics
+  df <- 1 
+  
+  if(distribution == "CDF"){
+    
+    plot <- plot(ecdf(J))
+    curve(pchisq(x, df = df), add = TRUE, lwd = 2)
+    legend("bottomright", c("Empirical CDF", "Theoretical CDF"),
+           lwd = c(1,2), col = c("black","black"), bty = "n")
+    
+  }
+  
+  if(distribution == "PDF"){
+    
+    d <- density(J)
+    plot(d)          # empirical curve
+    curve(dchisq(x,df = df), add = TRUE, lwd = 2)  # theoretical curve
+    legend("topright", c("Empirical KDE", "Theoretical PDF"),
+           lwd = c(1,2), bty = "n")
+    
+  }
+  
+  }
+
+
+nonclustered <- simulation(M = 1000, N = 1000, clustering = FALSE, level = 0.05)
+
+clustered <- simulation(M = 1000, N = 1000, clustering = TRUE, level = 0.05)
+
+graph(clustered$Jstats)
+
+graph(nonclustered$Jstats)
