@@ -1,158 +1,173 @@
+set.seed(1234)
+
 options(error = NULL) #Avoids having the (annoying) R debugging tool at each error 
 options(rlang_backtrace_on_error = "none")
 
-install.packages(c("MASS", "parallel", "dplyr", "gmm"))
-
+install.packages(c("MASS", "parallel", "dplyr", "gmm", "Matrix"))
 library(MASS)
 library(parallel)
 library(dplyr)
 library(gmm)
+library(Matrix)
 #### Replication code for the microeconometrics project. 
 
-### DGP function to create clustered data 
+##Low level functions (for easier readability when you correct)
 
-dgp_clust <- function(N = 1000, theta, intercept, clustering = FALSE){ 
+groupmaker <- function(N,G){
+###This function creates arbitrary clusters based on the nuber of clusters and the size of the population.
+###It can handle uneven cluster sizes 
+##Args 
   
-  ## Creation of the instruments 
+  #Inputs: 
+  #N: number of observations
+  #G: number of clusters
   
-  ins <- mvrnorm(n = N, mu = c(0, 0), Sigma = matrix(c(2, 0.8, 0.8, 3), ncol = 2))
+  #Output: 
+  #id: a vector of group assignments
   
-  Z1 <- as.vector(ins[,1])
-  Z2 <- as.vector(ins[,2])
+n <- N%/%G
+add <- N%%G
+
+grp_sizes <- c(rep(n+1,add), rep(n, G - add))
+
+if(length(grp_sizes) != G){stop("The vector of group assignments is not of the same length as the specified number of groups.")}
+if(sum(grp_sizes) != N){stop("The number of individuals assigned to a group is smaller than the specified number of individuals.")}
+id <- rep(0,N)
+
+id <- rep(seq_len(G), times = grp_sizes)
+}
+
+covariates_gen <- function(id, N, p, G,clustsd){
+###This function generates cross-sectionnaly dependant covariates. 
+##Args:
   
-  ## creation of the endogenous variable
+  #Inputs: 
+  #id: vector of cluster memberships
+  #N: number of individuals
+  #p: number of covariates
+  #clustsd: standard deviation of the ccommon characteristics within the cluster
   
-  eps <- rnorm(N, mean = 0, sd = 2)
+  #Output: a N*p matrix of covariates
   
-  rho <- runif(1, 0,1)
+  grp_dummies <- model.matrix(~factor(id) - 1) #NxG
+  common_chars <- matrix(rnorm(G* p, sd = clustsd), G, p) #G*p
   
-  u <- rnorm(N, mean = 0, sd = 2)
+  X <- grp_dummies %*% common_chars
   
-  u <- rho * eps + sqrt((1 - rho^2)) * u
+  return(X)
+}
+
+varcov_ins <- function(l, rho, sigmaZ) {
+### This function creates adaptative variance-covariance matrices for the instruments
+##Args 
   
-  X <- 1.3 * Z1 + 0.8 * Z2 + u
+  #Inputs: 
+  #l: number of instruments
+  #rho: parameter for the covariance
+  #sigmaZ: variance of the instruments
   
-  if(clustering == TRUE){ 
-    
-    ## creation of the endogenous variable
-    
-    eps1 <- rnorm(N/2, mean = 0, sd = 1)
-    
-    rho <- runif(1, 0,1)
-    
-    u1 <- rnorm(N/2, mean = 0, sd = 1)
-    
-    u1 <- rho * eps1 + sqrt((1 - rho^2)) * u1
-    
-    X1 <- 1.3 * Z1[1:(N/2)] + 0.8 * Z2[1:(N/2)] + u1
-    
-    eps2 <- rnorm(N/2, mean = 0, sd = 4)
-    
-    u2 <- rnorm(N/2,mean = 0, sd = 1)
-    
-    u2 <- rho*eps2 + sqrt((1 - rho^2)) + u2 
-    
-    X2 <- 1.3 * Z1[((N/2) + 1):N] + 0.8 * Z2[((N/2) + 1):N] + u2
-    
-    X <- as.vector(rbind(X1, X2))
-    
-    eps <- as.vector(rbind(eps1, eps2))
-    
-    }
+  #Output: a lxl variance-covariance matrix
   
-  ## creation of the outcomes 
+  vcov <- matrix(rho, l, l); diag(vcov) <- 1
+  S <- sigmaZ * vcov
   
-  Y <- intercept + theta * X + eps
-  
-  data <- data.frame(Y = Y, X = X, Z1 = Z1, Z2 = Z2)
-  
-  return(list(data = data, theta = theta, intercept = intercept))
+  return(S)
   
 }
 
-g <- function(theta, x){
+#################################################################################################
+############################ HIGHER LEVEL FUNCIONS ##############################################
+#################################################################################################
+
+dgp_clust <-function( 
+N = 10000,                  #Number of observations
+G = 25,                     #Number of clusters
+p = 3,                      #Number of parameters in the parameter vector
+endog = 3,                  #Number of endogenous regressors
+serialcor = 0,              #To allow for serial autocorrelation
+clustersd = 1,              #Variance within each cluster (covariates)
+errors_var = 1,             #Variance within each cluster (error terms)
+l = 4,                      #Number of instruments
+rho_Z = 0.3,                #Parameter for the covariance of the instruments
+sigmaZ = 1                  #Variance of the instruments
+){
   
-  g <- cbind(1, x$Z1, x$Z2) * (x$Y - theta[1] - theta[2] * x$X)
+  if(l<=p){stop("Number of instruments should exceed the number of parameters")}
+  
+  ### Instruments
+  
+  S_ins <- varcov_ins(l, rho_Z, sigmaZ)
+  
+  Z <- mvrnorm(n = N, mu = rep(0, l), Sigma = S_ins)
+  
+  ### Group structure
+  
+  # To allow for unbalanced clusters, keeping approximately same sizes (as in Hwang 2021)
+  
+  id <- groupmaker(N,G)
+  
+  #We generate covariates and error terms 
+  
+  S_endog <- varcov_ins(endog, 0.6, 1)
+  
+  mu_endog <- rep(0, endog)
+  
+  errors <- mvrnorm(N, mu = mu_endog, Sigma = S_endog)
+  
+  #We generate arbitrary correlation bewteen the endogenous regressors and the noise term 
+  
+  epsilon <- as.vector(errors[,1])
+  nu <- as.vector(errors[,2])
+  eta <- as.vector(errors[,3])
+  
+  X <- covariates_gen(id, N, p, G, clustersd)
+  
+  #We randomly assign the degree to which the endogenous regressors are endognenous
+  #The endogenous regressors are arbitrarily set to be the 2 first regressors
+  endog1 <- runif(1, 0, 0.4) 
+  endog2 <- runif(1, 0, 0.4)
+  
+  ins_1 <- rnorm(l)
+  
+  X[,1] <- X[,1] +  Z %*% ins_1 + nu 
+  
+  ins_2 <- rnorm(l)
+  
+  X[,2] <- X[,2] + Z %*% ins_2 + eta
+  
+  # We generate the outcomes 
+  
+  ## Coefficients are randomly draw
+  
+  beta <- rnorm(p)
+  
+  Y <- X%*%beta + epsilon
+  
+  #We now generate our l instruments : 
+  
+  data <- data.frame(id = as.data.frame(id),Y = as.data.frame(Y), X = as.data.frame(X), Z = as.data.frame(Z))
+  
+  return(list(data = data,beta = beta))
   
 }
 
-simulation <- function(M, N, clustering = FALSE, level = 0.05){
+testdata <- dgp_clust()
+beta <- testdata$beta
+testdata <- testdata$data
+
+eps <- testdata$V1 - cbind(testdata$X.V1, testdata$X.V2, testdata$X.V3) %*% beta
+
+mean(t(cbind(testdata$Z.V1, testdata$Z.V2, testdata$Z.V3, testdata$Z.V4)) %*% (testdata$V1 - cbind(testdata$X.V1, testdata$X.V2, testdata$X.V3) %*% beta))
+
+cor(testdata$Z.V4, eps)
+
+
+
+
+g <- function(beta, x, Z){
   
-  theta_sim <- rnorm(1, mean = 2, sd = 1)
-  
-  intercept_sim <- rnorm(1,mean = 0.5, sd = 0.25)
-  
-  theta <- rep(0,M)
-  intercept <- rep(0,M)
-  se_inter <- rep(0,M)
-  se_t <- rep(0,M)
-  coverage <- rep(0,M)
-  
-  z <- qnorm(1-level/2)
-  
-  Jstat <- rep(0,M)
-  
-  for(i in 1:M){
-    
-    data <- dgp_clust(N = N, theta = theta_sim, intercept = intercept_sim, clustering = clustering)$data
-    
-    estimates <- gmm(g, x = data, t0 = c(0,0), type = "twoStep")
-    
-    coeffs <- estimates$coefficients
-    
-    intercept[i] <- coeffs[[1]]
-    theta[i] <- coeffs[[2]]
-  
-    vcov <- estimates[["vcov"]]
-    
-    se_t[i] <- sqrt(vcov[2,2]) 
-    
-    se_inter[i] <- sqrt(vcov[1,1])
-    
-    lower_bound <- coeffs[[2]] - (z * sqrt(vcov[2,2])  / sqrt(N))
-    upper_bound <- coeffs[[2]] + (z * sqrt(vcov[2,2])  / sqrt(N))
-    
-    coverage[i] <- (theta_sim>=lower_bound)*(theta_sim<=upper_bound)  
-    
-    Jstat[i] <- specTest(estimates)$test[1]
-    
-  }
-  
-  return(list(intercept_true = intercept_sim, theta_true = theta_sim, intercept = mean(intercept), theta = mean(theta), coverage = mean(coverage), Jstats = Jstat))
+  g <- t(cbind(x$Z.V1, x$Z.V2, x$Z.V3, x$Z.V4)) %*% (x$V1 - cbind(x$X.V1, x$X.V2, x$X.V3) %*% beta)
   
 }
 
-graph <- function(statistics, distribution = "CDF"){ 
-  
-  J  <- statistics
-  df <- 1 
-  
-  if(distribution == "CDF"){
-    
-    plot <- plot(ecdf(J))
-    curve(pchisq(x, df = df), add = TRUE, lwd = 2)
-    legend("bottomright", c("Empirical CDF", "Theoretical CDF"),
-           lwd = c(1,2), col = c("black","black"), bty = "n")
-    
-  }
-  
-  if(distribution == "PDF"){
-    
-    d <- density(J)
-    plot(d)          # empirical curve
-    curve(dchisq(x,df = df), add = TRUE, lwd = 2)  # theoretical curve
-    legend("topright", c("Empirical KDE", "Theoretical PDF"),
-           lwd = c(1,2), bty = "n")
-    
-  }
-  
-  }
-
-
-nonclustered <- simulation(M = 1000, N = 1000, clustering = FALSE, level = 0.05)
-
-clustered <- simulation(M = 1000, N = 1000, clustering = TRUE, level = 0.05)
-
-graph(clustered$Jstats)
-
-graph(nonclustered$Jstats)
+estimates <- gmm(g, x = testdata, t0 = c(0,0), type = "twoStep")
