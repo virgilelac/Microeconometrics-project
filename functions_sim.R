@@ -111,10 +111,11 @@ simulation <- function(M = 1000,
   }
   
   cl <- makeCluster(detectCores() - 2, type = "FORK")
+  sim <- pblapply(1:M, cl = cl, function(i) {set.seed(1234+i) ## Given the type of cluster we use for paarallelization, we need this 
+                                                  step(n, G,
+                                                  L, theta, delta, pi_vec,
+                                                  sigma_a, sigma_b,sigma_eps, sigma_eta, level)})
   
-  sim <- pblapply(1:M, cl = cl, function(i) {step(n, G,
-                                                                     L, theta, delta, pi_vec,
-                                                                     sigma_a, sigma_b,sigma_eps, sigma_eta, level)})
   
   theta_vec <- sapply(sim, `[[`, "theta")
   coverage_vec <- sapply(sim, `[[`, "coverage")
@@ -128,3 +129,4 @@ simulation <- function(M = 1000,
   
   return(results)
 }
+
