@@ -3,7 +3,9 @@ set.seed(1234)
 options(error = NULL) #Avoids having the (annoying) R debugging tool at each error 
 options(rlang_backtrace_on_error = "none")
 
-install.packages(c("MASS", "parallel", "dplyr", "gmm", "Matrix", "future", "future.apply"))
+packs <- c("MASS", "parallel", "dplyr", "gmm", "Matrix", "future", "future.apply")
+inst <- packs[!packs %in% rownames(installed.packages())]
+if (length(inst) > 0) install.packages(inst)
 
 library(MASS)
 library(parallel)
