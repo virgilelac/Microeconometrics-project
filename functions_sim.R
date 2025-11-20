@@ -88,7 +88,7 @@ simulation <- function(M = 1000,
                       sigma_a, sigma_b,sigma_eps, sigma_eta)
     
     model <- gmm(y ~ 0 + x, 
-                 x ~ 0 + Z1 + Z2 + Z3, 
+                 ~ 0 + Z1 + Z2 + Z3, 
                  data = data, 
                  type = "twoStep")
     
