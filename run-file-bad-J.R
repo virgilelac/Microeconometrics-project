@@ -1,4 +1,4 @@
-set.seed(1234)
+source("functions_sim.R")
 
 M = 10000
 n = 50000
