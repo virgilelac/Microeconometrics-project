@@ -1,7 +1,7 @@
-source("functions_sim.R")
+source("https://raw.githubusercontent.com/virgilelac/Microeconometrics-project/refs/heads/main/functions_sim.R")
 
-M = 10000
-n = 50000
+M = 1000
+n = 500
 G = 25
 L = 3
 theta = 1
@@ -13,10 +13,14 @@ sigma_eps = 1
 sigma_eta = 1
 level = 0.05
 
-simulation_bad_j_stat <- simulation(M,
-                                    n, G,
-                                    L, theta, delta, pi_vec,
-                                    sigma_a, sigma_b,sigma_eps, sigma_eta, level)
+sim <- simulation(M,
+                  n, G,
+                  L, theta, delta, pi_vec,
+                  sigma_a, sigma_b,sigma_eps, sigma_eta, level)
 
+J_graph(J = sim$j)
 
+ks.test(sim$j, "pchisq", df = 2)
+
+sum(sim$j < qchisq(0.95, df = 2))/1000
 
