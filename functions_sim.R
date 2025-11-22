@@ -110,7 +110,7 @@ dgp_clust <- function(n = 50000, G = 25,
   )
 }
 
-simulation <- function(M = 1000, 
+simulation <- function(M = 10000, 
                        n = 50000, G = 25,
                        L = 3, theta = 1, delta = 0.1, pi_vec = c(0.8, 0.5, 0.3),
                        sigma_a = 1, sigma_b = 1,sigma_eps = 1, sigma_eta = 1, level = 0.05){
@@ -127,7 +127,7 @@ simulation <- function(M = 1000,
     
     model <- gmm(y ~0 + x, 
                  ~ 0 + Z1 + Z2 + Z3, 
-                 data = testdat, 
+                 data = data, 
                  type = "twoStep")
     
     true_theta <- theta
@@ -197,8 +197,8 @@ J_graph <- function(J){
   
 }
 
-good_inference <- function(M = 1000, 
-                           n = 50000, G = 5,
+good_inference <- function(M = 10000, 
+                           n = 50000, G = 25,
                            L = 3, theta = 1, delta = 0.1, pi_vec = c(0.8, 0.5, 0.3),
                            sigma_a = 1, sigma_b = 1,sigma_eps = 1, sigma_eta = 1, level = 0.05){
   
