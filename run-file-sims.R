@@ -4,7 +4,7 @@ source("https://raw.githubusercontent.com/virgilelac/Microeconometrics-project/r
 
 M = 10000
 n = 50000
-G = 10
+G = 25
 L = 3
 theta = 1
 delta = 0.1
@@ -29,7 +29,7 @@ ks.test(sim$j, "pchisq", df = 2)
 
 M = 10000
 n = 50000
-G = 10
+G = 25
 L = 3
 theta = 1
 delta = 0.1
