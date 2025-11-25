@@ -157,8 +157,8 @@ simulation <- function(M = 10000,
   ## Configuration for windows 
   
   if(.Platform$OS.type == "windows"){
-    clusterEvalQ(cl, {library(MASS)
-library(parallel)
+  clusterEvalQ(cl, {library(MASS)
+  library(parallel)
 library(dplyr)
 library(gmm)
 library(Matrix)
@@ -166,9 +166,18 @@ library(Matrix)
     clusterExport(cl, varlist = c("dgp_clust", "step"),envir = environment())} 
   
   sim <- pblapply(1:M, cl = cl, function(i) {set.seed(1234+i) ## Given the type of cluster we use for parallelization, we need this 
-                                                  step(n = n, G = G,
-                                                  L = L, theta = theta, delta = delta, pi_vec = pi_vec,
-                                                  sigma_a = sigma_a, sigma_b = sigma_b,sigma_eps = sigma_eps, sigma_eta = sigma_eta, level = 0.05)})
+                                                  step(n, 
+                                                       G,
+                                                       L,
+                                                       theta, 
+                                                       delta,
+                                                       pi_vec,
+                                                       sigma_a, 
+                                                       sigma_b,
+                                                       sigma_eps, 
+                                                       sigma_eta, 
+                                                       level)
+                                            })
   
   
   theta_vec <- sapply(sim, `[[`, "theta")
@@ -264,9 +273,14 @@ library(Matrix)
     clusterExport(cl, varlist = c("dgp_clust"),envir = environment())} 
   
   sim <- pblapply(1:M, cl = cl, function(i) {set.seed(1234+i) ## Given the type of cluster we use for parallelization, we need this 
-    step(n, G,
-         L, theta, delta, pi_vec,
-         sigma_a, sigma_b,sigma_eps, sigma_eta, level)})
+    step(n, 
+         G,
+         L, 
+         theta, 
+         delta, 
+         pi_vec,
+         sigma_a, sigma_b,sigma_eps, sigma_eta, 
+         level)})
   
   
   theta_vec <- sapply(sim, `[[`, "theta")
