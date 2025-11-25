@@ -152,7 +152,7 @@ simulation <- function(M = 10000,
     
   }
   
-  cl <- makeCluster(detectCores() - 2, type = if(.Platform$OS.type == "windows"){"PSOCK"}else{"FORK"})
+  cl <- makeCluster(min(20, detectCores() - 2), type = if(.Platform$OS.type == "windows"){"PSOCK"}else{"FORK"})
   
   ## Configuration for windows 
   
@@ -244,7 +244,7 @@ good_inference <- function(M = 10000,
     
   }
   
-  cl <- makeCluster(detectCores() - 2, type = if(.Platform$OS.type == "windows"){"PSOCK"}else{"FORK"})
+  cl <- makeCluster(min(20, detectCores() - 2), type = if(.Platform$OS.type == "windows"){"PSOCK"}else{"FORK"})
   
   ## Configuration for windows 
   
