@@ -143,7 +143,7 @@ simulation <- function(M = 10000,
     coverage <- (true_theta >= lower)*(true_theta<= upper)
     jstat <- specTest(model)$test[1]
     
-    cvg <- jstat < 3.84
+    cvg <- jstat < qchisq(1 - level, df = L - length(theta))
     
     return(list(theta = theta_est,
                 coverage = coverage,
