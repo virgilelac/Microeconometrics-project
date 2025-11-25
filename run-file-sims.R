@@ -18,7 +18,7 @@ level = 0.05
 sim_wrong <- simulation(M,
                   n, G,
                   L, theta, delta, pi_vec,
-                  sigma_a, sigma_b,sigma_eps, sigma_eta, level)
+                  sigma_a, sigma_b,sigma_eps, sigma_eta, level = 0.05)
 
 J_graph(J = sim_wrong$j)
 
@@ -43,7 +43,7 @@ level = 0.05
 sim_good <- good_inference(M,
                        n, G,
                        L, theta, delta, pi_vec,
-                       sigma_a, sigma_b,sigma_eps, sigma_eta, level)
+                       sigma_a, sigma_b,sigma_eps, sigma_eta, level = 0.05)
 
 J_graph(J = sim_good$j)
 
