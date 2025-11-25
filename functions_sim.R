@@ -157,6 +157,12 @@ simulation <- function(M = 10000,
   ## Configuration for windows 
   
   if(.Platform$OS.type == "windows"){
+    clusterEvalQ(cl, {library(MASS)
+library(parallel)
+library(dplyr)
+library(gmm)
+library(Matrix)
+                    })
     clusterExport(cl, varlist = c("dgp_clust"),envir = environment())} 
   
   sim <- pblapply(1:M, cl = cl, function(i) {set.seed(1234+i) ## Given the type of cluster we use for parallelization, we need this 
