@@ -114,7 +114,7 @@ simulation <- function(M = 10000,
                        n = 50000, G = 25,
                        L = 3, theta = 1, delta = 0.1, pi_vec = c(0.8, 0.5, 0.3),
                        sigma_a = 1, sigma_b = 1,sigma_eps = 1, sigma_eta = 1, level = 0.05){
-
+  
   step <- function(n, G,
                    L, theta, delta, pi_vec,
                    sigma_a, sigma_b,sigma_eps, sigma_eta, level){
@@ -146,38 +146,50 @@ simulation <- function(M = 10000,
     cvg <- jstat < 3.84
     
     return(list(theta = theta_est,
-           coverage = coverage,
-           j = jstat,
-           cvg = cvg))
+                coverage = coverage,
+                j = jstat,
+                cvg = cvg))
     
   }
+  
+  n = n
+  G = G
+  L = L
+  theta = theta
+  delta = delta
+  pi_vec = pi_vec
+  sigma_a = sigma_a
+  sigma_b = sigma_b
+  sigma_eps = sigma_eps
+  sigma_eta = sigma_eta
+  level = level
   
   cl <- makeCluster(min(20, detectCores() - 2), type = if(.Platform$OS.type == "windows"){"PSOCK"}else{"FORK"})
   
   ## Configuration for windows 
   
   if(.Platform$OS.type == "windows"){
-  clusterEvalQ(cl, {library(MASS)
-  library(parallel)
-library(dplyr)
-library(gmm)
-library(Matrix)
-                    })
+    clusterEvalQ(cl, {library(MASS)
+      library(parallel)
+      library(dplyr)
+      library(gmm)
+      library(Matrix)
+    })
     clusterExport(cl, varlist = c("dgp_clust", "step"),envir = environment())} 
   
   sim <- pblapply(1:M, cl = cl, function(i) {set.seed(1234+i) ## Given the type of cluster we use for parallelization, we need this 
-                                                  step(n, 
-                                                       G,
-                                                       L,
-                                                       theta, 
-                                                       delta,
-                                                       pi_vec,
-                                                       sigma_a, 
-                                                       sigma_b,
-                                                       sigma_eps, 
-                                                       sigma_eta, 
-                                                       level)
-                                            })
+    step(n, 
+         G,
+         L,
+         theta, 
+         delta,
+         pi_vec,
+         sigma_a, 
+         sigma_b,
+         sigma_eps, 
+         sigma_eta, 
+         level)
+  })
   
   
   theta_vec <- sapply(sim, `[[`, "theta")
@@ -227,7 +239,7 @@ good_inference <- function(M = 10000,
                       sigma_a, sigma_b,sigma_eps, sigma_eta)
     
     model <- gmm(y ~ 0 + x, 
-                  ~ 0 + Z1 + Z2 + Z3, 
+                 ~ 0 + Z1 + Z2 + Z3, 
                  data = data, 
                  type = "twoStep")
     
@@ -241,12 +253,12 @@ good_inference <- function(M = 10000,
                    ~ 0 + Z1 + Z2 + Z3, 
                    data = data, 
                    weightsMatrix = vcov
-                   )
+    )
     
     estimates <- twostep$coefficients
     
     theta_est <- estimates[1]
-
+    
     jstat <- specTest(model)$test[1]
     
     j_tilda <- ((G - q)/q) * (q*jstat/(G - q*jstat))
@@ -259,17 +271,29 @@ good_inference <- function(M = 10000,
     
   }
   
+  n = n
+  G = G
+  L = L
+  theta = theta
+  delta = delta
+  pi_vec = pi_vec
+  sigma_a = sigma_a
+  sigma_b = sigma_b
+  sigma_eps = sigma_eps
+  sigma_eta = sigma_eta
+  level = level
+  
   cl <- makeCluster(min(20, detectCores() - 2), type = if(.Platform$OS.type == "windows"){"PSOCK"}else{"FORK"})
   
   ## Configuration for windows 
   
   if(.Platform$OS.type == "windows"){
     clusterEvalQ(cl, {library(MASS)
-library(parallel)
-library(dplyr)
-library(gmm)
-library(Matrix)
-                    })
+      library(parallel)
+      library(dplyr)
+      library(gmm)
+      library(Matrix)
+    })
     clusterExport(cl, varlist = c("dgp_clust"),envir = environment())} 
   
   sim <- pblapply(1:M, cl = cl, function(i) {set.seed(1234+i) ## Given the type of cluster we use for parallelization, we need this 
