@@ -2,49 +2,30 @@ source("https://raw.githubusercontent.com/virgilelac/Microeconometrics-project/r
 
 #### Wrongful inference: consider no clustering when there is clustering. 
 
-M = 10000
-n = 50000
-G = 25
-L = 3
-theta = 1
-delta = 0.1
-pi_vec = c(1.5, -2, 1.8)
-sigma_a = 1
-sigma_b = 1
-sigma_eps = 1
-sigma_eta = 1
-level = 0.05
+table <- sim_table(M = 500,n_vec = c(3000, 6000, 9000), G_vec = c(20, 30), 
+          L = 3,
+          theta = 1,
+          delta = 0.3,
+          pi_vec = c(1.5, -2, 1.8),
+          sigma_a = 1,
+          sigma_b = 1,
+          sigma_eps = 1,
+          sigma_eta = 1,
+          rho = 0.1,
+          level = 0.05)
 
-sim_wrong <- simulation(M,
-                  n, G,
-                  L, theta, delta, pi_vec,
-                  sigma_a, sigma_b,sigma_eps, sigma_eta, level = 0.05)
+latex_table(table,
+            label   = "tab:sec6",
+            caption = "Simulation results: Hwang's case versus neglecting cluster structure")
 
-J_graph(J = sim_wrong$j)
-
-ks.test(sim$j, "pchisq", df = 2)
+### Random little checks
 
 
-#### Good inference: assuming clustering (and fixed-G asymptotics) when it's the case
+lala <- ks.test(sim$j, "pchisq", df = 2)$p.value
 
-M = 10000
-n = 50000
-G = 25
-L = 3
-theta = 1
-delta = 0.1
-pi_vec = c(1.5, -2, 1.8)
-sigma_a = 1
-sigma_b = 1
-sigma_eps = 1
-sigma_eta = 1
-level = 0.05
+J_graph(J = sim$j_Hwang)
 
-sim_good <- good_inference(M,
-                       n, G,
-                       L, theta, delta, pi_vec,
-                       sigma_a, sigma_b,sigma_eps, sigma_eta, level = 0.05)
+ks.test(sim$j_Hwang, "pf", df1 = 2, df2 = 3
+        )
 
-J_graph(J = sim_good$j)
 
-ks.test(sim_good$j, "pf", df1 = 2, df2 = G - 2)
