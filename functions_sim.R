@@ -3,7 +3,7 @@ set.seed(1234)
 options(error = NULL) #Avoids having the (annoying) R debugging tool at each error 
 options(rlang_backtrace_on_error = "none")
 
-packs <- c("MASS", "parallel", "dplyr", "gmm", "Matrix", "future", "future.apply", "torch")
+packs <- c("MASS", "parallel", "dplyr", "gmm", "Matrix", "future", "future.apply", "torch", "sandwich")
 inst <- packs[!packs %in% rownames(installed.packages())]
 if (length(inst) > 0) install.packages(inst)
 
@@ -11,13 +11,13 @@ library(MASS)
 library(parallel)
 library(dplyr)
 library(gmm)
-
 library(Matrix)
 library(ggplot2)
 library(future)
 library(future.apply)
 library(pbapply)
 library(torch)
+library(sandwich)
 
 ### Hwang's CCE 
 
@@ -86,7 +86,7 @@ CCE_Hwang_centered <- function(N, G, data, theta){
 
 dgp_clust <- function(n = 10000, G = 5,
                       L = 3, theta = 1, delta = 0.1, pi_vec = c(0.8, 0.5, 0.3),
-                      sigma_a = 1, sigma_b = 1,sigma_eps = 1, sigma_eta = 1, rho = 0){
+                      sigma_a = 1, sigma_b = 1,sigma_eps = 1, sigma_eta = 1, rho = 0, heterogenous = FALSE){
   
   ###Regularity checks
   
@@ -112,11 +112,31 @@ dgp_clust <- function(n = 10000, G = 5,
   b <- b_g[id]
 
   ### Draw individual shocks
-  eta <- rnorm(n, 0, sigma_eta)
-
-  eps <- rnorm(n, 0, sigma_eps)
+    
+    eta <- rnorm(n, 0, sigma_eta)
+    
+    eps <- rnorm(n, 0, sigma_eps)
+    
+  
   
   ### Draw instruments Z (n x L)
+    
+    if(heterogenous == TRUE){
+      
+      sigma_zeta <- runif(G, min = 0.5, max = 10)
+      sigma_epsi <- runif(G, min = 0.5, max = 10)
+      
+      zeta_g   <- matrix(rnorm(G * L,mean = 0, sd = sigma_zeta), nrow = G, ncol = L)
+      zeta_eps <- matrix(rnorm(n * L,mean = 0, sd = sigma_epsi), nrow = n, ncol = L)
+      
+      
+    }else{
+      
+      zeta_g   <- matrix(rnorm(G * L), nrow = G, ncol = L)
+      zeta_eps <- matrix(rnorm(n * L), nrow = n, ncol = L)
+      
+    }
+    
   zeta_g   <- matrix(rnorm(G * L), nrow = G, ncol = L)
   zeta_eps <- matrix(rnorm(n * L), nrow = n, ncol = L)
   Z <- rho * zeta_g[id, ] + sqrt(1 - rho^2) * zeta_eps 
@@ -148,7 +168,7 @@ dgp_clust <- function(n = 10000, G = 5,
 simulation <- function(M = 1000, 
                        n = 50000, G = 25,
                        L = 3, theta = 1, delta = 0.1, pi_vec = c(0.8, 0.5, 0.3),
-                       sigma_a = 1, sigma_b = 1,sigma_eps = 1, sigma_eta = 1, rho = 0,level = 0.05){
+                       sigma_a = 1, sigma_b = 1,sigma_eps = 1, sigma_eta = 1, rho = 0,level = 0.05, method = "classic", heterogenous = FALSE){
   
   theta_vec <- rep(0,M)
   theta_Hwang <- rep(0,M)
@@ -170,7 +190,7 @@ simulation <- function(M = 1000,
     
     data <- dgp_clust(n, G,
                       L, theta, delta, pi_vec,
-                      sigma_a, sigma_b,sigma_eps, sigma_eta, rho)
+                      sigma_a, sigma_b,sigma_eps, sigma_eta, rho, heterogenous)
     
     model <- gmm(y ~ 0 + x, 
                  ~ 0 + Z1 + Z2 + Z3, 
@@ -184,6 +204,24 @@ simulation <- function(M = 1000,
     
     estimates <- model$coefficients
     
+    
+    if(method == tolower("White")){
+      
+      whitecov <- vcovCL(
+        eff,
+        cluster = data$id,
+        type = "CR1"
+      )
+      gmat  <- g(data, coef(eff))              
+      gbar  <- colMeans(gmat)   
+      j   <- as.numeric(n * t(g_bar) %*% whitecov %*% g_bar)
+      
+    }else{
+      
+      j <- specTest(eff)$test[1] 
+      
+    }
+    
     vcov <- solve((CCE_Hwang_centered(n,G,data,estimates)))
     
     twostep <- gmm(y ~ 0 + x,
@@ -195,7 +233,6 @@ simulation <- function(M = 1000,
     estimates <- eff$coefficients
     estimates_Hwang <- twostep$coefficients
  
-    j <- specTest(eff)$test[1]
     j_vec[i] <- j
     
     g_mat  <- g(data, coef(twostep))              
@@ -211,7 +248,7 @@ simulation <- function(M = 1000,
     bias[i] <- estimates[1] - true_theta[1]
     bias_Hwang[i] <- estimates_Hwang[1] - true_theta[1]
   
-    cov_j[i] <- specTest(eff)$test[1] < m
+    cov_j[i] <- j < m
     cov_Hwang[i] <- j_tilda < f
     
   }
@@ -237,7 +274,7 @@ simulation <- function(M = 1000,
 
 sim_table <- function(M = 1000,n_vec = c(100, 500, 1000), G_vec = c(4, 5), 
                       L = 3, theta = 1, delta = 0.1, pi_vec = c(0.8, 0.5, 0.3),
-                      sigma_a = 1, sigma_b = 1,sigma_eps = 1, sigma_eta = 1, rho = 0.1,level = 0.05){
+                      sigma_a = 1, sigma_b = 1,sigma_eps = 1, sigma_eta = 1, rho = 0.1,level = 0.05, method = "classic", heterogenous = FALSE){
   
   g_vals <- as.vector(G_vec)
   n_vals <- as.vector(n_vec)
@@ -258,7 +295,7 @@ sim_table <- function(M = 1000,n_vec = c(100, 500, 1000), G_vec = c(4, 5),
       sim <- simulation(M,
                        n, G,
                       L, theta, delta, pi_vec,
-                      sigma_a, sigma_b,sigma_eps, sigma_eta, rho,level)
+                      sigma_a, sigma_b,sigma_eps, sigma_eta, rho,level, method, heterogenous)
       
       ks_std <-  ks.test(sim$j, "pchisq", df = L - length(theta))$p.value > 0.05
       ks_Hw <- ks.test(sim$j_Hwang, "pf", df1 = 2, df2 = G - (L - length(theta)))$p.value > 0.05
@@ -398,3 +435,4 @@ latex_table <- function(results,
   cat("}\n")
   cat("\\end{table}\n")
 }
+
